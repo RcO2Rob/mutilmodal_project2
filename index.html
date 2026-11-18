@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From Gaussian Noise to a Sword | Project 2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav aria-label="Report sections">
+<a href="#ring">1. Learning a flow</a>
+<a href="#sword">2. Creative target</a>
+<a href="#reflow">3. Reflow</a>
+<a href="#results">Results and settings</a>
+</nav>
+<main>
+<section id="ring">
+<p class="kicker">Project 2 · Flow Matching and Creative Point-Cloud Generation</p>
+<h1>From Gaussian Noise to a Sword</h1>
+<p class="byline">Roucheng Ou · Graduate track</p>
+<p class="lead">Can a model learn to move Gaussian points into a target shape, and can we sample the learned flow in fewer steps? An annulus makes it possible to check the basic transport. A sword silhouette then makes it possible to see where coarse Euler steps lose detail. Across three sword runs, one round of reflow brought five-step mean grid TV to <strong>0.119</strong>, close to the 50-step baseline's <strong>0.120</strong>.</p>
+
+<h2 class="first-heading">1. Learning a 2D flow</h2>
+<p>For the annulus, I sampled angle uniformly from [0, 2π) and squared radius uniformly from [0.64, 1.5625]. Sampling squared radius gives uniform density per unit area. The source is a standard two-dimensional Gaussian. Each training example pairs independent source and target draws and samples t uniformly from [0, 1].</p>
+<p class="equation">x<sub>t</sub> = (1 − t)x<sub>0</sub> + t x<sub>1</sub> &nbsp; · &nbsp; u = x<sub>1</sub> − x<sub>0</sub> &nbsp; · &nbsp; loss = E[‖v<sub>θ</sub>(x<sub>t</sub>, t) − u‖<sup>2</sup>]</p>
+<p>Differentiating the interpolation gives a constant velocity for each pair. The network sees only the position and time, so mean squared error encourages it to estimate the conditional mean of the possible velocities there. Different pairs can call for different movements, which explains why the training loss stays positive. Following the resulting velocity field can therefore give a curved trajectory even though each training path is straight.</p>
+<div class="grid ring-setup">
+<figure><img src="assets/ring_pairs.png" alt="Seven straight training paths with equally spaced positions"><figcaption><strong>Training pairs.</strong> Circles mark sources, squares mark targets. Equal time intervals give equally spaced points on each line.</figcaption></figure>
+<figure><img src="assets/ring_loss.png" alt="Ring training loss decreases then levels off"><figcaption><strong>Training loss.</strong> The first and final 100-update means are 2.77 and 2.14.</figcaption></figure>
+</div>
+<div class="ring-sampling">
+<h3>Following the learned velocity field</h3>
+<p>At generation time, I start with fresh noise and integrate the learned field using z<sub>k+1</sub> = z<sub>k</sub> + Δt v<sub>θ</sub>(z<sub>k</sub>, t<sub>k</sub>). With 256 Euler steps, 92.4% of 4,096 points land in the intended annulus and 1.9% land in the central hole.</p>
+<figure><img src="assets/ring_transport.png" alt="Point cloud from initial noise through final annulus, alongside target samples"><figcaption><strong>Learned transport.</strong> The same particles are shown across four times, followed by independent target draws.</figcaption></figure>
+<figure><img src="assets/ring_field.png" alt="Velocity arrows at three times overlaid on generated particles"><figcaption><strong>Learned velocity field.</strong> Arrows show predictions at fixed grid positions. The light blue points show where particles are at each time.</figcaption></figure>
+<div class="ring-paths">
+<figure><img src="assets/ring_paths.png" alt="Twelve learned trajectories into the annulus"><figcaption><strong>Learned paths.</strong> Circles mark fresh starts, squares mark generated endpoints. Each curve is an Euler trajectory.</figcaption></figure> 
+<div>
+<p>At t = 0.125, arrows point mostly inward, shrinking the initial cloud. Near t = 0.875, the arrows just inside the ring point outward and the arrows farther out still point inward. The cloud first contracts, then spreads away from the center to form the hole.</p>
+<p>The training pairs specified a straight path to each assigned endpoint. The paths here follow the local velocity field, and each starting point reaches the endpoint determined by the solve.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section id="sword">
+<p class="kicker">Part 2</p>
+<h2>2. Generating the sword</h2>
+<div class="demo">
+<div>
+<p>The sword is the union of a tapered blade, crossguard, grip, and circular pommel. I draw points uniformly in the rectangle [−0.80, 0.80] × [−1.60, 1.56] and keep points inside the union. Each location is counted once where two pieces overlap. The geometry is original and uses no external image.</p>
+<p>The animation tracks 3,600 particles through a 256-step Euler solve of the seed-17 baseline. Each particle keeps the color assigned from its initial horizontal coordinate. The network receives position and time only. Color lets us follow the same points as the blade and guard emerge.</p>
+<p class="print-only"><a href="https://rco2rob.github.io/mutilmodal_project2/assets/sword_transport.gif">View the full sword animation (GIF)</a>.</p>
+</div>
+<figure class="screen-only"><img src="assets/sword_transport.gif" alt="Animated particles move from Gaussian noise to a sword silhouette"><figcaption><a href="assets/sword_transport.gif">Open the full animation (GIF)</a></figcaption></figure>
+</div>
+<figure><img src="assets/sword_frames.png" alt="Four frames of actual Euler trajectories from noise to sword"><figcaption><strong>Frames from the demo.</strong> The blade becomes visible before the crossguard and grip separate from the surrounding points.</figcaption></figure>
+<h3>What changes when we take fewer steps?</h3>
+<p>For each seed, I fix the model, the 16,384 Gaussian starts, and an independent target sample of equal size. Grid TV is half the sum of the absolute differences in bin proportions. All comparisons use 60 × 60 bins over [−3, 3]² plus an overflow bin. The sword sweep produced zero overflow. Two independent target samples give mean TV 0.058, a reference for sampling variation at this grid size.</p>
+<figure><img src="assets/sword_euler.png" alt="Independent target and baseline sword samples at one, five, ten, 25, and 50 steps"><figcaption><strong>Baseline sweep, seed 17.</strong> All six panels use the same scale. A one-step solve concentrates points near the center, while the crossguard and grip emerge with more steps.</figcaption></figure>
+<div class="table-scroll"><table><thead><tr><th scope="col">Euler steps / NFE</th><th scope="col">Grid TV ↓</th><th scope="col">Endpoint error ↓</th><th scope="col">Inside silhouette</th><th scope="col">CPU ms</th></tr></thead><tbody><tr><td>1</td><td>0.918</td><td>0.712</td><td>99.98%</td><td>3.5</td></tr><tr><td>5</td><td>0.361</td><td>0.164</td><td>96.35%</td><td>17.4</td></tr><tr><td>10</td><td>0.231</td><td>0.083</td><td>96.56%</td><td>34.8</td></tr><tr><td>25</td><td>0.138</td><td>0.031</td><td>95.18%</td><td>87.0</td></tr><tr><td>50</td><td>0.120</td><td>0.014</td><td>94.31%</td><td>174.1</td></tr></tbody></table></div>
+<p class="caption">Three-seed means. Endpoint error is mean Euclidean distance to the same model's 256-step endpoint from the same start. Times cover sampling only and average each seed's median of seven timed solves after warm-up.</p>
+<p>The one-step cloud puts 99.98% of points inside the sword but has TV 0.918. At t = 0, independent pairing makes the ideal velocity the target mean minus the starting position, so one Euler update sends every point to the mean. The learned model nearly reproduces that collapse. At 50 steps the mean endpoint error falls to 0.014, while target TV stays at 0.120. A 256-step solve reduces it only to 0.113, leaving a gap larger than the independent target-sample reference.</p>
+</section>
+
+<section id="reflow">
+<p class="kicker">Part 3</p>
+<h2>3. Reflow and the shape of the paths</h2>
+<p>I expected reflow to make the baseline transport more direct and reduce the number of Euler steps needed for a comparable sword. For each frozen baseline, I drew 32,768 new Gaussian starts, ran 256 Euler steps, and saved each start with its own generated endpoint. Doubling the teacher's grid to 512 steps on a subset shifted endpoints by 0.0017 coordinate units on average. I trained a fresh MLP of the same architecture on linear interpolations between the saved pairs.</p>
+<figure><img src="assets/reflow_endpoints.png" alt="Baseline and reflow end clouds across five matched Euler step counts"><figcaption><strong>Matched starts and step counts, seed 17.</strong> The reflow model already spreads its points along the blade and crossguard at one step.</figcaption></figure>
+<div class="paths-figure">
+<figure><img src="assets/reflow_paths.png" alt="Sixteen matched trajectories for baseline and reflow on a fine grid"><figcaption><strong>Matched paths.</strong> Circles mark starts and squares mark ends. The trajectories are integrated using the same 256-step grid.</figcaption></figure>
+</div>
+<p>I measured path excess as the sum of segment lengths minus the straight distance from start to finish, using 2,048 held-out starts from each evaluation batch. The mean fell from 0.215 to 0.00003 coordinate units. The endpoint error against each model's own 256-step solve fell from 0.712 to 0.011 at one step. The small coarse-solve error is consistent with a velocity that changes little along the reflow trajectories.</p>
+<p>The pairing explains why this is plausible. A reflow endpoint depends on its source through the teacher's transport, so the direction at t = 0 can depend on which source point we drew. At the same time, these endpoints carry the teacher's density errors. This gives a reason to expect straighter paths and more accurate coarse solves, with a smaller effect on fine-step target quality.</p>
+</section>
+
+<section id="results">
+<p class="kicker">Results and settings</p>
+<h2>Quality at a smaller sampling budget</h2>
+<figure><img src="assets/reflow_quality.png" alt="Target grid TV and endpoint error for both models by Euler step count"><figcaption><strong>Quality and step sensitivity.</strong> Lines show seed means. Shaded bands span the minimum and maximum across three seeds.</figcaption></figure>
+<div class="table-scroll"><table><thead><tr><th scope="col">Euler steps / NFE</th><th scope="col">Baseline TV ↓</th><th scope="col">Reflow TV ↓</th><th scope="col">Baseline ms</th><th scope="col">Reflow ms</th></tr></thead><tbody><tr><td>1</td><td>0.918</td><td>0.128</td><td>3.6</td><td>3.5</td></tr><tr><td>5</td><td>0.361</td><td>0.119</td><td>17.5</td><td>17.4</td></tr><tr><td>10</td><td>0.231</td><td>0.116</td><td>34.9</td><td>34.9</td></tr><tr><td>25</td><td>0.138</td><td>0.116</td><td>87.4</td><td>87.1</td></tr><tr><td>50</td><td>0.120</td><td>0.116</td><td>176.0</td><td>174.6</td></tr></tbody></table></div>
+<p class="caption">Means across three paired runs. One batched velocity-network evaluation per Euler step, for 16,384 points. CPU time excludes rendering and evaluation metrics.</p>
+<div class="table-scroll"><table><thead><tr><th scope="col">Seed</th><th scope="col">Baseline 50-step TV</th><th scope="col">Reflow 5-step TV</th><th scope="col">Baseline excess</th><th scope="col">Reflow excess</th></tr></thead><tbody><tr><td>17</td><td>0.126</td><td>0.122</td><td>0.220</td><td>3.02e-05</td></tr><tr><td>29</td><td>0.110</td><td>0.114</td><td>0.210</td><td>3.00e-05</td></tr><tr><td>43</td><td>0.125</td><td>0.120</td><td>0.213</td><td>3.46e-05</td></tr></tbody></table></div>
+<p class="caption">Grid TV and mean excess by seed for the five-step reflow versus 50-step baseline comparison.</p>
+<p>At five steps, reflow averaged TV 0.119 versus 0.120 for the 50-step baseline, with 17.4 versus 176.0 ms of sampling time. It matched or improved the 50-step baseline's TV on 2 of the three seeds. At 256 steps the baseline and reflow TVs were 0.113 and 0.116, respectively. On this target, reflow preserved much of the teacher's endpoint quality while making it accessible at a smaller inference budget.</p>
+<p>Generating the paired dataset took 1.9 s per run, and fitting reflow took another 8.7 s. The initial sword model took 17.6 s on average. Those are costs paid before sampling. The extra fitting cost is paid once, while the savings recur with each generated batch. The three seeds measure how much that comparison varied on this target.</p>
+<h3>Reproducibility</h3>
+<p>Apple M5 MacBook Air, CPU only, two PyTorch threads, Python 3.12.14, PyTorch 2.14.1, NumPy 2.5.4, Matplotlib 3.11.2, and Pillow 12.3.0. Each MLP has three 128-unit SiLU hidden layers (33,794 parameters). Adam uses learning rate 0.001 and batch size 256. I trained for 16,000 updates on the ring, 36,000 on the sword baseline, and 20,000 on reflow. The ring took 7.5 s to train. Seeds are 17 for the ring, 17, 29, and 43 for the sword, and 1017, 1029, and 1043 for reflow initialization.</p>
+<h3>References</h3>
+<ol>
+<li>Lipman, Chen, Ben-Hamu, Nickel, and Le. <a href="https://arxiv.org/abs/2210.02747">Flow Matching for Generative Modeling</a>. ICLR 2023.</li>
+<li>Liu, Gong, and Liu. <a href="https://arxiv.org/abs/2209.03003">Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow</a>. ICLR 2023.</li>
+</ol>
+</section>
+<footer>Project 2 · Roucheng Ou</footer>
+</main>
+</body>
+</html>
