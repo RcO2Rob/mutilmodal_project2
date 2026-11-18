@@ -11,7 +11,7 @@
 <a href="#ring">1. Learning a flow</a>
 <a href="#sword">2. Creative target</a>
 <a href="#reflow">3. Reflow</a>
-<a href="#results">Results and settings</a>
+<a href="#results">Results</a>
 </nav>
 <main>
 <section id="ring">
@@ -76,7 +76,7 @@
 </section>
 
 <section id="results">
-<p class="kicker">Results and settings</p>
+<p class="kicker">Results</p>
 <h2>Quality at a smaller sampling budget</h2>
 <figure><img src="assets/reflow_quality.png" alt="Target grid TV and endpoint error for both models by Euler step count"><figcaption><strong>Quality and step sensitivity.</strong> Lines show seed means. Shaded bands span the minimum and maximum across three seeds.</figcaption></figure>
 <div class="table-scroll"><table><thead><tr><th scope="col">Euler steps / NFE</th><th scope="col">Baseline TV ↓</th><th scope="col">Reflow TV ↓</th><th scope="col">Baseline ms</th><th scope="col">Reflow ms</th></tr></thead><tbody><tr><td>1</td><td>0.918</td><td>0.128</td><td>3.6</td><td>3.5</td></tr><tr><td>5</td><td>0.361</td><td>0.119</td><td>17.5</td><td>17.4</td></tr><tr><td>10</td><td>0.231</td><td>0.116</td><td>34.9</td><td>34.9</td></tr><tr><td>25</td><td>0.138</td><td>0.116</td><td>87.4</td><td>87.1</td></tr><tr><td>50</td><td>0.120</td><td>0.116</td><td>176.0</td><td>174.6</td></tr></tbody></table></div>
@@ -85,8 +85,6 @@
 <p class="caption">Grid TV and mean excess by seed for the five-step reflow versus 50-step baseline comparison.</p>
 <p>At five steps, reflow averaged TV 0.119 versus 0.120 for the 50-step baseline, with 17.4 versus 176.0 ms of sampling time. It matched or improved the 50-step baseline's TV on 2 of the three seeds. At 256 steps the baseline and reflow TVs were 0.113 and 0.116, respectively. On this target, reflow preserved much of the teacher's endpoint quality while making it accessible at a smaller inference budget.</p>
 <p>Generating the paired dataset took 1.9 s per run, and fitting reflow took another 8.7 s. The initial sword model took 17.6 s on average. Those are costs paid before sampling. The extra fitting cost is paid once, while the savings recur with each generated batch. The three seeds measure how much that comparison varied on this target.</p>
-<h3>Reproducibility</h3>
-<p>Apple M5 MacBook Air, CPU only, two PyTorch threads, Python 3.12.14, PyTorch 2.14.1, NumPy 2.5.4, Matplotlib 3.11.2, and Pillow 12.3.0. Each MLP has three 128-unit SiLU hidden layers (33,794 parameters). Adam uses learning rate 0.001 and batch size 256. I trained for 16,000 updates on the ring, 36,000 on the sword baseline, and 20,000 on reflow. The ring took 7.5 s to train. Seeds are 17 for the ring, 17, 29, and 43 for the sword, and 1017, 1029, and 1043 for reflow initialization.</p>
 <h3>References</h3>
 <ol>
 <li>Lipman, Chen, Ben-Hamu, Nickel, and Le. <a href="https://arxiv.org/abs/2210.02747">Flow Matching for Generative Modeling</a>. ICLR 2023.</li>
